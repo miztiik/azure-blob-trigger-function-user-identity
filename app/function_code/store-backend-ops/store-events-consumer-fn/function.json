@@ -13,7 +13,7 @@
             "type": "blob",
             "name": "outputBlob",
             "direction": "out",
-            "path": "store-events-blob-005/processed/{DateTime}_{data.eTag}.json",
+            "path": "%WAREHOUSE_STORAGE_CONTAINER%/processed/{DateTime}_{data.eTag}.json",
             "connection": "WAREHOUSE_STORAGE"
           },
           {

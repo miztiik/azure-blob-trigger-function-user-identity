@@ -84,7 +84,7 @@ module r_cosmodb 'modules/database/cosmos.bicep' ={
 // Create the function app & Functions
 module r_functionApp 'modules/functions/create_function.bicep' = {
   scope: resourceGroup(r_rg.name)
-  name: '${storageAccountParams.storageAccountNamePrefix}_${deploymentParams.global_uniqueness}_FnApp'
+  name: '${funcParams.funcNamePrefix}_${deploymentParams.global_uniqueness}_FnApp'
   params: {
     deploymentParams:deploymentParams
     funcParams: funcParams
@@ -101,5 +101,22 @@ module r_functionApp 'modules/functions/create_function.bicep' = {
   }
   dependsOn: [
     r_sa
+  ]
+}
+
+// Create Event Grid System Topic & Subscription
+module r_evntGridSystemTopic 'modules/functions/create_event_grid_topic.bicep' = {
+  scope: resourceGroup(r_rg.name)
+  name: '${funcParams.funcNamePrefix}_${deploymentParams.global_uniqueness}_event_grid_system_topic'
+  params: {
+    deploymentParams:deploymentParams
+    tags: tags
+    saName: r_sa.outputs.saName
+    blobContainerName: r_blob.outputs.blobContainerName
+    funcParams: funcParams
+    funcAppName: r_functionApp.outputs.fnAppName
+  }
+  dependsOn: [
+    r_functionApp
   ]
 }

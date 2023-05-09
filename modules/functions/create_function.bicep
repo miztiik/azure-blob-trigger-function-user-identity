@@ -84,14 +84,16 @@ resource r_fnApp_settings 'Microsoft.Web/sites/config@2021-03-01' = {
     APPINSIGHTS_INSTRUMENTATIONKEY: r_applicationInsights.properties.InstrumentationKey
     FUNCTIONS_WORKER_RUNTIME: 'python'
     FUNCTIONS_EXTENSION_VERSION: '~4'
-    ENABLE_ORYX_BUILD: 'true'
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    // ENABLE_ORYX_BUILD: 'true'
+    // SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
     WAREHOUSE_STORAGE: 'DefaultEndpointsProtocol=https;AccountName=${saName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${r_sa.listKeys().keys[0].value}'
+    WAREHOUSE_STORAGE_CONTAINER: blobContainerName
     SUBSCRIPTION_ID: subscription().subscriptionId
     RESOURCE_GROUP: resourceGroup().name
     COSMOS_DB_URL: r_cosmodbAccnt.properties.documentEndpoint
     COSMOS_DB_NAME: cosmosDbName
     COSMOS_DB_CONTAINER_NAME: cosmosDbContainerName
+
 
     // COSMOS_DB_KEY: r_cosmodbAccnt.listKeys().primaryMasterKey
   }
@@ -218,6 +220,10 @@ resource r_fn_1 'Microsoft.Web/sites/functions@2022-03-01' = {
     r_fnApp_settings
   ]
 }
+
+
+
+
 // var hostJson = loadTextContent('host.json')
 // resource zipDeploy 'Microsoft.Web/sites/extensions@2022-03-01' = {
 //   parent: r_fnApp
@@ -336,6 +342,7 @@ resource r_customRoleAssignmentToUsrIdentity 'Microsoft.DocumentDB/databaseAccou
     scope: r_cosmodbAccnt.id
     principalId: r_userManagedIdentity.properties.principalId
   }
+
 }
 
 
@@ -366,56 +373,6 @@ resource r_cosmosFnAppAadRoleAssignment 'Microsoft.Authorization/roleAssignments
   }
 }
 
-
-// Create Event Grid Subscription with Filter
-// Event Grid topic
-// resource r_eventGrid_topic 'Microsoft.EventGrid/topics@2022-06-15' = {
-resource r_eventGrid_system_topic 'Microsoft.EventGrid/systemTopics@2022-06-15' = {
-  name: '${funcParams.funcNamePrefix}-eventGrid-Topic-${deploymentParams.global_uniqueness}'
-  location: deploymentParams.location
-  tags: tags
-  identity: {
-    type: 'None'
-  }
-  properties: {
-    source: r_sa.id
-    topicType: 'microsoft.storage.storageaccounts'
-    // dataResidencyBoundary: 'WithinRegion'
-    // inputSchema: 'CloudEventSchemaV1_0'
-    // publicNetworkAccess: 'Enabled'
-  }
-}
-
-
-
-// Blob Change Log Subscription with filter
-resource r_fn_1_eventGrid_subscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2022-06-15' = {
-  parent: r_eventGrid_system_topic
-  name: '${funcParams.funcNamePrefix}-blob-events-subscription-${deploymentParams.global_uniqueness}'
-  properties: {
-    eventDeliverySchema: 'CloudEventSchemaV1_0'
-    destination: {
-      endpointType: 'AzureFunction'
-          properties: {
-            resourceId: r_fn_1.id
-            maxEventsPerBatch: 1
-          preferredBatchSizeInKilobytes: 64
-          }
-    }
-    filter: {
-      subjectBeginsWith: '/blobServices/default/containers/${blobContainerName}/blobs/source'
-      subjectEndsWith: '.json'
-          includedEventTypes: [ 
-            'Microsoft.Storage.BlobCreated'
-            // 'Microsoft.Storage.BlobDeleted'
-          ]
-    }    
-    retryPolicy: {
-      maxDeliveryAttempts: 30
-      eventTimeToLiveInMinutes: 1440
-    }
-  }
-}
 
 
 // Function App Binding
@@ -468,7 +425,6 @@ resource r_fnLogsToAzureMonitor 'Microsoft.Insights/diagnosticSettings@2021-05-0
 output fnAppName string = r_fnApp.name
 
 // Functions Outputs
-output fnName string = r_fn_1.name
 output fnIdentity string = r_fnApp.identity.principalId
 output fnAppUrl string = r_fnApp.properties.defaultHostName
 output fnUrl string = r_fnApp.properties.defaultHostName

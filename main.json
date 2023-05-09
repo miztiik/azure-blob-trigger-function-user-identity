@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.17.1.54307",
-      "templateHash": "16249566592428813463"
+      "templateHash": "5571999256361720230"
     }
   },
   "parameters": {
@@ -792,7 +792,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "[format('{0}_{1}_FnApp', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness)]",
+      "name": "[format('{0}_{1}_FnApp', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness)]",
       "resourceGroup": "[variables('rgName')]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -841,7 +841,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.17.1.54307",
-              "templateHash": "11888697622097959265"
+              "templateHash": "1117236402720683453"
             }
           },
           "parameters": {
@@ -959,9 +959,8 @@
                 "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components', format('{0}-fnAppInsights-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness)), '2020-02-02').InstrumentationKey]",
                 "FUNCTIONS_WORKER_RUNTIME": "python",
                 "FUNCTIONS_EXTENSION_VERSION": "~4",
-                "ENABLE_ORYX_BUILD": "true",
-                "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
                 "WAREHOUSE_STORAGE": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', parameters('saName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('saName')), '2021-06-01').keys[0].value)]",
+                "WAREHOUSE_STORAGE_CONTAINER": "[parameters('blobContainerName')]",
                 "SUBSCRIPTION_ID": "[subscription().subscriptionId]",
                 "RESOURCE_GROUP": "[resourceGroup().name]",
                 "COSMOS_DB_URL": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2022-08-15').documentEndpoint]",
@@ -1158,51 +1157,6 @@
               ]
             },
             {
-              "type": "Microsoft.EventGrid/systemTopics",
-              "apiVersion": "2022-06-15",
-              "name": "[format('{0}-eventGrid-Topic-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness)]",
-              "location": "[parameters('deploymentParams').location]",
-              "tags": "[parameters('tags')]",
-              "identity": {
-                "type": "None"
-              },
-              "properties": {
-                "source": "[resourceId('Microsoft.Storage/storageAccounts', parameters('saName'))]",
-                "topicType": "microsoft.storage.storageaccounts"
-              }
-            },
-            {
-              "type": "Microsoft.EventGrid/systemTopics/eventSubscriptions",
-              "apiVersion": "2022-06-15",
-              "name": "[format('{0}/{1}', format('{0}-eventGrid-Topic-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness), format('{0}-blob-events-subscription-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness))]",
-              "properties": {
-                "eventDeliverySchema": "CloudEventSchemaV1_0",
-                "destination": {
-                  "endpointType": "AzureFunction",
-                  "properties": {
-                    "resourceId": "[resourceId('Microsoft.Web/sites/functions', format('{0}-fnApp-{1}', parameters('funcParams').funcAppPrefix, parameters('deploymentParams').global_uniqueness), format('{0}-consumer-fn', parameters('funcParams').funcNamePrefix))]",
-                    "maxEventsPerBatch": 1,
-                    "preferredBatchSizeInKilobytes": 64
-                  }
-                },
-                "filter": {
-                  "subjectBeginsWith": "[format('/blobServices/default/containers/{0}/blobs/source', parameters('blobContainerName'))]",
-                  "subjectEndsWith": ".json",
-                  "includedEventTypes": [
-                    "Microsoft.Storage.BlobCreated"
-                  ]
-                },
-                "retryPolicy": {
-                  "maxDeliveryAttempts": 30,
-                  "eventTimeToLiveInMinutes": 1440
-                }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.EventGrid/systemTopics', format('{0}-eventGrid-Topic-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness))]",
-                "[resourceId('Microsoft.Web/sites/functions', format('{0}-fnApp-{1}', parameters('funcParams').funcAppPrefix, parameters('deploymentParams').global_uniqueness), format('{0}-consumer-fn', parameters('funcParams').funcNamePrefix))]"
-              ]
-            },
-            {
               "type": "Microsoft.Web/sites/hostNameBindings",
               "apiVersion": "2022-03-01",
               "name": "[format('{0}/{1}', format('{0}-fnApp-{1}', parameters('funcParams').funcAppPrefix, parameters('deploymentParams').global_uniqueness), format('{0}.azurewebsites.net', format('{0}-fnApp-{1}', parameters('funcParams').funcAppPrefix, parameters('deploymentParams').global_uniqueness)))]",
@@ -1260,10 +1214,6 @@
               "type": "string",
               "value": "[format('{0}-fnApp-{1}', parameters('funcParams').funcAppPrefix, parameters('deploymentParams').global_uniqueness)]"
             },
-            "fnName": {
-              "type": "string",
-              "value": "[format('{0}-consumer-fn', parameters('funcParams').funcNamePrefix)]"
-            },
             "fnIdentity": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.Web/sites', format('{0}-fnApp-{1}', parameters('funcParams').funcAppPrefix, parameters('deploymentParams').global_uniqueness)), '2021-03-01', 'full').identity.principalId]"
@@ -1283,6 +1233,125 @@
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_Blob', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_cosmosdb', parameters('cosmosDbParams').cosmosDbNamePrefix, parameters('deploymentParams').global_uniqueness))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_La', parameters('logAnalyticsWorkspaceParams').workspaceName, parameters('deploymentParams').global_uniqueness))]",
+        "[subscriptionResourceId('Microsoft.Resources/deployments', variables('rgName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_Sa', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('{0}_{1}_event_grid_system_topic', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness)]",
+      "resourceGroup": "[variables('rgName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "deploymentParams": {
+            "value": "[parameters('deploymentParams')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "saName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_Sa', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness)), '2022-09-01').outputs.saName.value]"
+          },
+          "blobContainerName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_Blob', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness)), '2022-09-01').outputs.blobContainerName.value]"
+          },
+          "funcParams": {
+            "value": "[parameters('funcParams')]"
+          },
+          "funcAppName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_FnApp', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness)), '2022-09-01').outputs.fnAppName.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.17.1.54307",
+              "templateHash": "659102008865558839"
+            }
+          },
+          "parameters": {
+            "deploymentParams": {
+              "type": "object"
+            },
+            "funcParams": {
+              "type": "object"
+            },
+            "funcAppName": {
+              "type": "string"
+            },
+            "saName": {
+              "type": "string"
+            },
+            "blobContainerName": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": "[resourceGroup().tags]"
+            }
+          },
+          "variables": {
+            "funcName": "[format('{0}-consumer-fn', parameters('funcParams').funcNamePrefix)]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.EventGrid/systemTopics",
+              "apiVersion": "2022-06-15",
+              "name": "[format('{0}-eventGrid-Topic-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness)]",
+              "location": "[parameters('deploymentParams').location]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "None"
+              },
+              "properties": {
+                "source": "[resourceId('Microsoft.Storage/storageAccounts', parameters('saName'))]",
+                "topicType": "microsoft.storage.storageaccounts"
+              }
+            },
+            {
+              "type": "Microsoft.EventGrid/systemTopics/eventSubscriptions",
+              "apiVersion": "2022-06-15",
+              "name": "[format('{0}/{1}', format('{0}-eventGrid-Topic-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness), format('{0}-blob-events-subscription-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness))]",
+              "properties": {
+                "eventDeliverySchema": "CloudEventSchemaV1_0",
+                "destination": {
+                  "endpointType": "AzureFunction",
+                  "properties": {
+                    "resourceId": "[resourceId('Microsoft.Web/sites/functions', parameters('funcAppName'), variables('funcName'))]",
+                    "maxEventsPerBatch": 1,
+                    "preferredBatchSizeInKilobytes": 64
+                  }
+                },
+                "filter": {
+                  "subjectBeginsWith": "[format('/blobServices/default/containers/{0}/blobs/source', parameters('blobContainerName'))]",
+                  "subjectEndsWith": ".json",
+                  "includedEventTypes": [
+                    "Microsoft.Storage.BlobCreated"
+                  ]
+                },
+                "retryPolicy": {
+                  "maxDeliveryAttempts": 30,
+                  "eventTimeToLiveInMinutes": 1440
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.EventGrid/systemTopics', format('{0}-eventGrid-Topic-{1}', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness))]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_Blob', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_FnApp', parameters('funcParams').funcNamePrefix, parameters('deploymentParams').global_uniqueness))]",
         "[subscriptionResourceId('Microsoft.Resources/deployments', variables('rgName'))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('rgName')), 'Microsoft.Resources/deployments', format('{0}_{1}_Sa', parameters('storageAccountParams').storageAccountNamePrefix, parameters('deploymentParams').global_uniqueness))]"
       ]

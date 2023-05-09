@@ -12,7 +12,7 @@ GLOBAL_UNIQUENESS_SOURCE=$(jq -r '.parameters.deploymentParams.value.global_uniq
 TO_DEL_NUM=$(echo $GLOBAL_UNIQUENESS_SOURCE | sed 's/^0*//') # Remove leading zeros
 TO_DEL_NUM="$((TO_DEL_NUM - 1))" # Decrement by 1
 printf -v GLOBAL_UNIQUENESS "%03d" "$TO_DEL_NUM" # Add leading zeros
-echo $GLOBAL_UNIQUENESS
+# echo $GLOBAL_UNIQUENESS
 
 
 RG_NAME="${ENTERPRISE_NAME}_${ENTERPRISE_NAME_SUFFIX}_${GLOBAL_UNIQUENESS}"
