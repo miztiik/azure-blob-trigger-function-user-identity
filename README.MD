@@ -18,7 +18,7 @@ Azure offers user [assigned managed identities][8] that can be narrowly scoped t
 
 - The permission scoping for resources like cosmosdb data plane is slightlly different from say Storage Accounts. We need to use the `Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions` to assign the permissions. The `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments` is used to assign the role to the user managed identity.
 
-- The Azure function needs these environment variables for permissions like cosmos DB to work
+- The Azure function needs these environment variables for permissions like cosmos DB to work, [Thanks to this blog][10]
    - `SUBSCRIPTION_ID`
    - `RESOURCE_GROUP`
 
@@ -220,6 +220,7 @@ Thank you for your interest in contributing to our project. Whether it is a bug 
 1. [Miztiik Blog - Blob Storage Processing with Python Azure Functions with HTTP Triggers][7]
 1. [Azure Docs - Managed Identity][8]
 1. [Azure Docs - Managed Identity Caching][9]
+1. [Azure Docs - Azure Function and User Assigned Managed Identities][10]
 
 
 
@@ -232,6 +233,7 @@ Thank you for your interest in contributing to our project. Whether it is a bug 
 [7]: https://github.com/miztiik/azure-blob-input-binding-to-function
 [8]: https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview
 [9]: https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity?tabs=portal%2Chttp#configure-target-resource
+[10]: https://www.red-gate.com/simple-talk/cloud/azure/azure-function-and-user-assigned-managed-identities/
 
 ### 🏷️ Metadata
 
