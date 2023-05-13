@@ -329,7 +329,7 @@ resource r_customRoleAssignmentToSysIdentity 'Microsoft.DocumentDB/databaseAccou
   properties: {
     roleDefinitionId: r_cosmodb_customRoleDef.id
     scope: r_cosmodbAccnt.id
-    principalId: r_fnApp.identity.principalId
+    principalId: r_userManagedIdentity.properties.principalId
   }
 }
 
@@ -371,56 +371,6 @@ resource r_cosmosFnAppAadRoleAssignment 'Microsoft.Authorization/roleAssignments
   }
 }
 
-
-// Create Event Grid Subscription with Filter
-// Event Grid topic
-// resource r_eventGrid_topic 'Microsoft.EventGrid/topics@2022-06-15' = {
-resource r_eventGrid_system_topic 'Microsoft.EventGrid/systemTopics@2022-06-15' = {
-  name: '${funcParams.funcNamePrefix}-eventGrid-Topic-${deploymentParams.global_uniqueness}'
-  location: deploymentParams.location
-  tags: tags
-  identity: {
-    type: 'None'
-  }
-  properties: {
-    source: r_sa.id
-    topicType: 'microsoft.storage.storageaccounts'
-    // dataResidencyBoundary: 'WithinRegion'
-    // inputSchema: 'CloudEventSchemaV1_0'
-    // publicNetworkAccess: 'Enabled'
-  }
-}
-
-
-
-// Blob Change Log Subscription with filter
-resource r_fn_1_eventGrid_subscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2022-06-15' = {
-  parent: r_eventGrid_system_topic
-  name: '${funcParams.funcNamePrefix}-blob-events-subscription-${deploymentParams.global_uniqueness}'
-  properties: {
-    eventDeliverySchema: 'CloudEventSchemaV1_0'
-    destination: {
-      endpointType: 'AzureFunction'
-          properties: {
-            resourceId: r_fn_1.id
-            maxEventsPerBatch: 1
-          preferredBatchSizeInKilobytes: 64
-          }
-    }
-    filter: {
-      subjectBeginsWith: '/blobServices/default/containers/${blobContainerName}/blobs/source'
-      subjectEndsWith: '.json'
-          includedEventTypes: [ 
-            'Microsoft.Storage.BlobCreated'
-            // 'Microsoft.Storage.BlobDeleted'
-          ]
-    }    
-    retryPolicy: {
-      maxDeliveryAttempts: 30
-      eventTimeToLiveInMinutes: 1440
-    }
-  }
-}
 
 
 // Function App Binding

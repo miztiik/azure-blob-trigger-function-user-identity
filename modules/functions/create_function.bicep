@@ -1,6 +1,6 @@
 param deploymentParams object
 param funcParams object
-param tags object = resourceGroup().tags
+param tags object
 param logAnalyticsWorkspaceId string
 param enableDiagnostics bool = true
 
@@ -18,6 +18,10 @@ resource r_sa 'Microsoft.Storage/storageAccounts@2021-06-01' existing = {
 }
 resource r_sa_1 'Microsoft.Storage/storageAccounts@2021-06-01' existing = {
   name: funcSaName
+}
+
+resource r_blob_Ref 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' existing = {
+  name: '${saName}/default/${blobContainerName}'
 }
 
 // Create User-Assigned Identity
@@ -51,7 +55,8 @@ resource r_fnApp 'Microsoft.Web/sites@2021-03-01' = {
   tags: tags
   identity: {
     // type: 'SystemAssigned'
-    type: 'SystemAssigned, UserAssigned'
+    // type: 'SystemAssigned, UserAssigned'
+    type: 'UserAssigned'
       userAssignedIdentities: {
         '${r_userManagedIdentity.id}': {}
       }
@@ -82,10 +87,13 @@ resource r_fnApp_settings 'Microsoft.Web/sites/config@2021-03-01' = {
     WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${funcSaName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${r_sa_1.listKeys().keys[0].value}'
     WEBSITE_CONTENTSHARE: toLower(funcParams.funcNamePrefix)
     APPINSIGHTS_INSTRUMENTATIONKEY: r_applicationInsights.properties.InstrumentationKey
+    // APPINSIGHTS_INSTRUMENTATIONKEY: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${keyVault::appInsightsInstrumentationKeySecret.name})'
     FUNCTIONS_WORKER_RUNTIME: 'python'
     FUNCTIONS_EXTENSION_VERSION: '~4'
     // ENABLE_ORYX_BUILD: 'true'
     // SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    AZURE_CLIENT_ID: r_userManagedIdentity.properties.clientId
+    AZURE_TENANT_ID: r_userManagedIdentity.properties.tenantId
     WAREHOUSE_STORAGE: 'DefaultEndpointsProtocol=https;AccountName=${saName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${r_sa.listKeys().keys[0].value}'
     WAREHOUSE_STORAGE_CONTAINER: blobContainerName
     SUBSCRIPTION_ID: subscription().subscriptionId
@@ -93,7 +101,6 @@ resource r_fnApp_settings 'Microsoft.Web/sites/config@2021-03-01' = {
     COSMOS_DB_URL: r_cosmodbAccnt.properties.documentEndpoint
     COSMOS_DB_NAME: cosmosDbName
     COSMOS_DB_CONTAINER_NAME: cosmosDbContainerName
-
 
     // COSMOS_DB_KEY: r_cosmodbAccnt.listKeys().primaryMasterKey
   }
@@ -266,12 +273,7 @@ resource r_storageBlobDataContributorRoleAssignment 'Microsoft.Authorization/rol
 
 
 param blobOwnerRoleId string = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
-
 var blobPermsConditionStr= '((!(ActionMatches{\'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read\'}) AND !(ActionMatches{\'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write\'}) ) OR (@Resource[Microsoft.Storage/storageAccounts/blobServices/containers:name] StringEquals \'${blobContainerName}\'))'
-
-resource r_blob_Ref 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' existing = {
-  name: '${saName}/default/${blobContainerName}'
-}
 
 
 // Refined Scope with conditions
@@ -320,59 +322,28 @@ resource r_cosmodb_customRoleDef 'Microsoft.DocumentDB/databaseAccounts/sqlRoleD
       }
     ]
   }
+  dependsOn: [
+    r_userManagedIdentity
+  ]
 }
 
 // Assign the custom role to the user-assigned managed identity
 var cosmosDbDataContributorRoleDefinitionId = resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', r_cosmodbAccnt.name, '00000000-0000-0000-0000-000000000002')
-resource r_customRoleAssignmentToSysIdentity 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
-  name:  guid(r_userManagedIdentity.id, r_cosmodbAccnt.id, cosmosDbDataContributorRoleDefinitionId)
-  parent: r_cosmodbAccnt
-  properties: {
-    roleDefinitionId: r_cosmodb_customRoleDef.id
-    scope: r_cosmodbAccnt.id
-    principalId: r_fnApp.identity.principalId
-  }
-}
+
 
 resource r_customRoleAssignmentToUsrIdentity 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
-  name:  guid(r_userManagedIdentity.id, r_cosmodbAccnt.id, 'r_customRoleAssignmentToUsrIdentity')
+  name:  guid(r_userManagedIdentity.id, r_cosmodbAccnt.id, cosmosDbDataContributorRoleDefinitionId, r_sa.id)
   parent: r_cosmodbAccnt
   properties: {
-    roleDefinitionId: r_cosmodb_customRoleDef.id
+    // roleDefinitionId: r_cosmodb_customRoleDef.id
+    roleDefinitionId: cosmosDbDataContributorRoleDefinitionId
     scope: r_cosmodbAccnt.id
     principalId: r_userManagedIdentity.properties.principalId
   }
-
+  dependsOn: [
+    r_userManagedIdentity
+  ]
 }
-
-
-
-var roleAssignmentId = guid('sql-role-assignment', resourceGroup().id, r_cosmodbAccnt.id)
-
-// Create Cosmos DB Role Assignment for Function App
-resource r_dbRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2022-08-15' = {
-  name: roleAssignmentId
-  parent: r_cosmodbAccnt
-  properties: {
-    principalId: r_fnApp.identity.principalId
-    roleDefinitionId: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${r_cosmodbAccnt.name}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
-    scope: r_cosmodbAccnt.id
-  }
-}
-
-// This is for managing CosmoDBs - Not Data Plane Operations
-// Assigned to Function App Managed Identity
-var cosmosContributorRoleDefId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450')
-resource r_cosmosFnAppAadRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(r_cosmodbAccnt.id, r_fnApp.name, cosmosContributorRoleDefId)
-  scope: r_cosmodbAccnt
-  properties: {
-    principalId: r_fnApp.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: cosmosContributorRoleDefId
-  }
-}
-
 
 
 // Function App Binding
@@ -421,10 +392,11 @@ resource r_fnLogsToAzureMonitor 'Microsoft.Insights/diagnosticSettings@2021-05-0
   }
 }
 
-//Function App
+//FunctionApp Outputs
 output fnAppName string = r_fnApp.name
 
-// Functions Outputs
-output fnIdentity string = r_fnApp.identity.principalId
+// Function Outputs
+// output fnName string = r_fn_1.name
+// output fnIdentity string = r_fnApp.identity.principalId
 output fnAppUrl string = r_fnApp.properties.defaultHostName
 output fnUrl string = r_fnApp.properties.defaultHostName

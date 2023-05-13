@@ -4,11 +4,25 @@ The developers at Mystique Unicorn [process files][6] as soon [as they arrive][7
 
 They heard about Azure's capabilities for user managed identities. Can you help them implement this event processing at Mystique Unicorn? 
 
-![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions using Managed Identity](images/miztiik_architecture_azure_blob_storage_processing_in_functions_even_grid_trigger_001.png)
+![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions using Managed Identity](images/iztiik_architecture_blob_event_function_processor_with_managed_identity_001.png)
 
 ## 🎯 Solution
 
-Our solution enables seamless event processing on Azure Blob Storage through the use of Azure Functions and [Event Grid triggers][1] using user managed identity. The Azure [blob storage events][2] for events like blob creation and deletion can be used to trigger the function. A sample event from event grid is shown below,
+Azure offers user [assigned managed identities][8] that can be narrowly scoped to necessary permissions. But there are few nitty gritty things that we need to remember when using user managed identities.
+
+- [User managed identities and resource mapping are cached][9] - The update interval is `24`hrs. Excerpt from docs,
+
+   > The back-end services for managed identities maintain a cache per resource URI for around 24 hours. If you update the access policy of a particular target resource and immediately retrieve a token for that resource, you may continue to get a cached token with outdated permissions until that token expires. There's currently no way to force a token refresh.
+
+   It is possible you may get errors due to this. My testing didn't show any errors, but it is possible. 
+
+- The permission scoping for resources like cosmosdb data plane is slightlly different from say Storage Accounts. We need to use the `Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions` to assign the permissions. The `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments` is used to assign the role to the user managed identity.
+
+- The Azure function needs these environment variables for permissions like cosmos DB to work
+   - `SUBSCRIPTION_ID`
+   - `RESOURCE_GROUP`
+
+With this knowledge, we can process Blob Storage through the use of Azure Functions and [Event Grid triggers][1] with user managed identity. The Azure [blob storage events][2] for events like blob creation and deletion can be used to trigger the function. A sample event from event grid is shown below,
 
 ```json
 {
@@ -103,6 +117,8 @@ By leveraging the power of Bicep, all necessary resources can be easily provisio
       ```
 
       After successfully deploying the stack, Check the `Resource Groups/Deployments` section for the resources.
+
+      ![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions using Managed Identity](images/iztiik_architecture_blob_event_function_processor_with_managed_identity_002.png)
       
 
 1. ## 🔬 Testing the solution
@@ -114,38 +130,54 @@ By leveraging the power of Bicep, all necessary resources can be easily provisio
       Sample bash script to upload files to blob container. You can also upload manually from the portal,
       ```bash
       # Set variables
-      RESOURCE_GROUP="Miztiik_Enterprises_azure_blob_eventgrid_trigger_function_002"
-      LOCATION="northeurope"
-      SA_NAME="warehouse6p5crf002"
-      CONTAINER_NAME="store-events-blob-002"
+      LOG_FILE="/var/log/miztiik-$(date +'%Y-%m-%d').json"
+      COMPUTER_NAME=$(hostname)
+      SLEEP_AT_WORK_SECS=0
+      LOG_COUNT=2
 
-      for i in {1..2}
+      GREEN="\e[32m"
+      CYAN="\e[36m"
+      YELLOW="\e[33m"
+      RESET="\e[0m"
+
+      RESOURCE_GROUP="Miztiik_Enterprises_azure_blob_eventgrid_trigger_function_003"
+      LOCATION="northeurope"
+      SA_NAME="warehouseenx5vm003"
+      CONTAINER_NAME="store-events-blob-003"
+      
+
+      for ((i=1; i<=LOG_COUNT; i++))
       do
       FILE_NAME_PREFIX=$(openssl rand -hex 4)
       FILE_NAME="${RANDOM}_$(date +'%Y-%m-%d')_event.json"
       echo -n "{\"message\": \"hello world on $(date +'%Y-%m-%d')\" , \"timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"}" > ${FILE_NAME} 
-      az storage blob upload \
+      UPLOAD_STATUS=$(az storage blob upload \
         --account-name ${SA_NAME} \
         --container-name ${CONTAINER_NAME} \
         --name "source/${FILE_NAME}" \
         --file ${FILE_NAME} \
-        --auth-mode login
+        --no-progress \
+        --auth-mode login\
+        --output json | tr -d '\r')
       
       sleep 2
-      echo -e "\n\n---> ${FILE_NAME} uploaded to ${CONTAINER_NAME} in ${SA_NAME} storage account\n\n"
+      # echo -e ${GREEN}${UPLOAD_STATUS}${RESET}
+      echo -e "\n  ${YELLOW}($i/$LOG_COUNT)${RESET} Blob: ${GREEN}${FILE_NAME}${RESET} uploaded to container: ${CYAN}${CONTAINER_NAME}${RESET} in storage account: ${CYAN}${SA_NAME}${RESET}"
       done
       ```
       You should see an output like this,
-      >---> 27999_2023-05-06_event.json uploaded to store-events-blob-002 in warehouse6p5crf002 storage account
-       
-      ![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions](images/miztiik_architecture_azure_blob_storage_processing_in_functions_even_grid_trigger_003.png)
+      >(1/2) Blob: 758_2023-05-13_event.json uploaded to container: store-events-blob-003 in storage account: warehouseenx5vm003
 
-      ![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions](images/miztiik_architecture_azure_blob_storage_processing_in_functions_even_grid_trigger_004.png)
+      >(2/2) Blob: 7893_2023-05-13_event.json uploaded to container: store-events-blob-003 in storage account: warehouseenx5vm003
+       
+      ![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions using Managed Identity](images/iztiik_architecture_blob_event_function_processor_with_managed_identity_003.png)
+
+      ![Miztiik Automation - Azure Blob Storage Processing with Event Grid Triggers & Python Azure Functions using Managed Identity](images/iztiik_architecture_blob_event_function_processor_with_managed_identity_004.png)
 
      
 1. ## 📒 Conclusion
 
-    Here we have demonstrated trigger Azure functions with http trigger and process blob files. You can extend the solution and configure the function to send the events to other services like Event Hub, Service Bus, or persist them to Cosmos etc.
+    Here we have demonstrated how to use Azure functions to process blob files and persist in cosmosDB.
   
 
 1. ## 🧹 CleanUp
@@ -186,6 +218,8 @@ Thank you for your interest in contributing to our project. Whether it is a bug 
 1. [Azure Event Grid Filters][5]
 1. [Miztiik Blog - Blob Storage Event Processing with Python Azure Functions][6]
 1. [Miztiik Blog - Blob Storage Processing with Python Azure Functions with HTTP Triggers][7]
+1. [Azure Docs - Managed Identity][8]
+1. [Azure Docs - Managed Identity Caching][9]
 
 
 
@@ -196,6 +230,8 @@ Thank you for your interest in contributing to our project. Whether it is a bug 
 [5]: https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-event-overview
 [6]: https://github.com/miztiik/azure-blob-trigger-python-function
 [7]: https://github.com/miztiik/azure-blob-input-binding-to-function
+[8]: https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview
+[9]: https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity?tabs=portal%2Chttp#configure-target-resource
 
 ### 🏷️ Metadata
 

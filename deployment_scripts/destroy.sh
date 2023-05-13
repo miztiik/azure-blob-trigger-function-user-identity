@@ -1,6 +1,15 @@
 # set -x
 set -e
 
+# Define colors for console output
+GREEN="\e[32m"
+RED="\e[31m"
+BLUE="\e[34m"
+CYAN="\e[36m"
+YELLOW="\e[33m"
+RESET="\e[0m"
+# echo -e "${GREEN}This text is green.${RESET}"
+
 # Set Global Variables
 MAIN_BICEP_TEMPL_NAME="main.bicep"
 LOCATION=$(jq -r '.parameters.deploymentParams.value.location' params.json)
@@ -19,23 +28,25 @@ RG_NAME="${ENTERPRISE_NAME}_${ENTERPRISE_NAME_SUFFIX}_${GLOBAL_UNIQUENESS}"
 
 function shiva_de_destroyer {
   if [[ $1 == "shiva" ]]; then
+    echo -e "${RED}"
     echo "|------------------------------------------------------------------|"
     echo "|                                                                  |"
     echo "|                   Shiva the destroyer in action                  |"
     echo "|             Beginning the end of the Miztiikon Universe          |"
     echo "|                                                                  |"
     echo "|------------------------------------------------------------------|"
+    echo -e "${RESET}"
     
 
     # Delete Subscription deployments
-    echo -e "\033[33m Initiating Subscription Deployment Deletion \033[0m" # Yellow
-    echo -e "\033[31m  - ${SUB_DEPLOYMENT_PREFIX}"-"${GLOBAL_UNIQUENESS} \033[0m" # Green
+    echo -e "${YELLOW} Initiating Subscription Deployment Deletion ${RESET}" # Yellow
+    echo -e "${CYAN} - ${SUB_DEPLOYMENT_PREFIX}"-"${GLOBAL_UNIQUENESS} ${RESET}" # Green
 
     az deployment sub delete \
         --name ${SUB_DEPLOYMENT_PREFIX}"-"${GLOBAL_UNIQUENESS}"-Deployment"
-    
-    echo -e "\033[33m Initiating Resource Group Deletion \033[0m" # Yellow
-    echo -e "\033[31m  - ${RG_NAME} \033[0m" # Green
+
+    echo -e "${YELLOW} Initiating Resource Group Deletion ${RESET}" # Yellow
+    echo -e "${CYAN} - ${RG_NAME} ${RESET}" # Green
 
     az deployment sub delete \
         --name ${RG_NAME}

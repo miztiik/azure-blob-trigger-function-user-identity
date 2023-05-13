@@ -5,7 +5,7 @@
     "deploymentParams": {
       "value": {
         "location": "northeurope",
-        "global_uniqueness": "011",
+        "global_uniqueness": "004",
         "enterprise_name": "Miztiik_Enterprises",
         "enterprise_name_suffix": "blob_trigger_function_user_identity",
         "sub_deploymnet_prefix": "Miztiik_Verse"
@@ -39,8 +39,6 @@
         "cosmosDbNamePrefix": "store-backend",
         "cosmosDatabaseName" :"",
         "cosmodDbContainerName":""
-
-
       }
     },
     "logAnalyticsWorkspaceParams": {
